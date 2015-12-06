@@ -1,0 +1,16 @@
+#IDEA
+*.iml
+*.ipr
+*.iws
+.idea
+out
+
+#SCALA
+target
+*.class
+
+#OS X
+.DS_Store
+
+#SBT
+project/project
