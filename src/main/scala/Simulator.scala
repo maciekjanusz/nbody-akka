@@ -2,6 +2,15 @@ import akka.actor._
 
 import scala.util.Random
 
+/*
+  - skalowanie z realnym obciążeniem obliczeniowym
+  - porównać z programem na pętli
+  - sprawdzic czy da sie skonfigurowac ilosc wątków
+  - oblozenie rdzeni
+
+  - dopisac program z problemem szukania substringow
+ */
+
 object Simulator extends App {
 
   val params = SystemParameters(100, 1000, 0.1) // objects, time frames, time delta
