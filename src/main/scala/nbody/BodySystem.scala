@@ -1,16 +1,16 @@
+package nbody
+
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Props, ActorRef, ActorLogging, Actor}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
 import scala.reflect.ClassTag
 
 final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq[S], nextState: (S, Seq[S]) => S)
     extends Actor with ActorLogging {
 
-  var bodies = Seq.empty[ActorRef]
-  var results = Seq.empty[S]
-  var nReady = 0
-  var nFinished = 0
+  val bodies = StateSet.empty[ActorRef]
+  val results = StateSet.empty[S]
 
   var nanoStart: Long = 0
 
@@ -20,13 +20,15 @@ final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq
     val iterator = Iterator.from(0)
     // spawn actors
     initialStates foreach { state =>
-      bodies :+= context.watch {
+      bodies += context.watch {
         context.actorOf(Props(classOf[Body[S]], tMax, state, nextState, implicitly[ClassTag[S]]),
           name = "body-" + iterator.next())
       }
     }
 
     // send peer lists to actors
+    nanoStart = System.nanoTime()
+
     bodies foreach { body =>
       body ! ActorRefSeq(bodies.filter { b => b != body })
     }
@@ -40,17 +42,8 @@ final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq
   }
 
   def started(handler: ActorRef): Receive = {
-    case Ready =>
-      nReady += 1
-      if(nReady == n) {
-        nanoStart = System.nanoTime()
-        bodies foreach { body =>
-          body ! Start
-        }
-      }
-
     case state: S =>
-      results :+= state
+      results += state
       if(results.size == n) {
         val delta = System.nanoTime() - nanoStart
         val avgFrame = delta / tMax
@@ -59,7 +52,7 @@ final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq
 
         context.stop(self)
         handler ! Finished(results)
-        log.info("Finished in " + deltaMillis + " ms, avg t/frame = " + avgMillis + " ms")
+        log.info("Finished in " + deltaMillis + " ms, avg t/frame = " + avgMillis + " ms (" + avgFrame + "ns)")
       }
   }
 }
