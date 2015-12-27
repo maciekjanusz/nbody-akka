@@ -1,78 +1,64 @@
 import akka.actor.{ActorRef, ActorLogging, Actor}
 
-class Body(params: BodyParameters)
-          (implicit systemParams: SystemParameters) extends Actor with ActorLogging {
+import scala.collection.mutable
+import scala.reflect.ClassTag
 
-  var states = Seq.empty[BodyState]
-  states :+= BodyState(Point.random, 0)
+sealed class Body[S <: BodyState : ClassTag](tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
+  extends Actor with ActorLogging {
 
-  var peers = Seq.empty[ActorRef]
-  var peerStates = Seq.empty[BodyState]
-  var futureStates = Seq.empty[BodyState]
+  var currentState = initialState
+  val peers = mutable.Buffer.empty[ActorRef]
+  val peerStates = mutable.Buffer.empty[S]
+  val futureStates = mutable.Buffer.empty[S]
 
   override def receive: Receive = {
     case ActorRefSeq(list) =>
-      peers = list
+      peers ++= list
       sender ! Ready
       context.become(ready)
   }
 
   def ready: Receive = {
     case Start =>
-      broadcastState(states.last)
+      broadcastState(initialState)
 
-    case obj: BodyState =>
-      receiveState(obj)
+    case state: S =>
+      receiveState(state)
   }
 
   def finished: Receive = {
     case _ =>
   }
 
-  def receiveState(state: BodyState) {
-    import state._
-    val currentState = states.last
-
-    if (t == currentState.t) {
-      peerStates :+= state
-    } else {//if (t > currentState.t) { // <-- nie ma mozliwosci, zeby bylo mniejsze
-      futureStates :+= state
+  def receiveState(state: S): Unit = {
+    if (state.t == currentState.t) {
+      peerStates += state
+    } else {
+      futureStates += state
     }
 
-    if (peerStates.size == peers.size) {
+    while (peerStates.size == peers.size) {
+      print(". ")
       // calculate new state
-      val nextTime = t + 1
-      val newState = BodyState.random(nextTime)  // <--- random bo w sumie nie wazne jak sie to liczy
-      states :+= newState
-      // remove all peer states
-      peerStates = Seq.empty[BodyState]
-      // broadcast new state
+      val nextTime = state.t + 1
+      val newState = nextState(currentState, peerStates)
+      currentState = newState
+      peerStates.clear()
       broadcastState(newState)
 
-      // if there are future states from other actors in extraStates,
-      // handle them as if they had just been received
-      if (futureStates.nonEmpty) {
-        val nextStepStates = futureStates filter { es => es.t == nextTime } // <-- tu chyba mozna zalozyc, ze zawsze tak jest
-        futureStates = futureStates diff nextStepStates
-        nextStepStates foreach { state => receiveState(state) }
-      }
+      peerStates ++= futureStates
+      futureStates.clear()
 
-      // finally, if it's the last iteration, finish
-      if(nextTime == systemParams.t) finish()
+      if(nextTime == tMax) finish()
     }
   }
 
-  def finish() {
-    context.parent ! Finished
+  def finish(): Unit = {
+    context.parent ! currentState
     context.become(finished)
   }
 
-  def broadcastState(state: BodyState) {
-    peers foreach {
-      peer => {
-        peer ! state
-      }
-    }
+  def broadcastState(state: BodyState): Unit = {
+    peers foreach { _ ! state }
   }
-
 }
