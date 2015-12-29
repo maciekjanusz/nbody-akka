@@ -6,7 +6,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
 import scala.reflect.ClassTag
 
-final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq[S], nextState: (S, Seq[S]) => S)
+class BodySystem[S <: State : ClassTag](tMax: Long, initialStates: Seq[S], nextState: (S, Seq[S]) => S)
     extends Actor with ActorLogging {
 
   val bodies = StateSet.empty[ActorRef]

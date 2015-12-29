@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class LoopSimulationRunner[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq[S], nextState: (S, Seq[S]) => S) {
+class LoopSimulationRunner[S <: State : ClassTag](tMax: Long, initialStates: Seq[S], nextState: (S, Seq[S]) => S) {
 
   def run(): Unit = {
 

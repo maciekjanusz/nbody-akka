@@ -1,18 +1,18 @@
 package nbody
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging}
 
 import scala.reflect.ClassTag
 
-sealed class Body[S <: BodyState : ClassTag](n: Long, tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
+class Body[S <: State : ClassTag](n: Long, tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
   extends Actor with ActorLogging {
 
   def peers = n - 1
 
   var currentState = initialState
-  //  val peerStates = StateSet.empty[S]
-  var processedStates = 0
-  var futureStates = 0 //StateSet.empty[S]
+  val bodies = context.actorSelection("../*") // siblings
+  val peerStates = StateSet.empty[S]
+  val futureStates = StateSet.empty[S]
 
   override def receive: Receive = {
     case Start =>
@@ -24,35 +24,37 @@ sealed class Body[S <: BodyState : ClassTag](n: Long, tMax: Long, initialState: 
       }
   }
 
-
   def receiveState(state: S): Unit = {
     if (state.t == currentState.t) {
-      processedStates += 1
+      peerStates += state
     } else {
-      futureStates += 1
+      futureStates += state
     }
 
     var t = state.t
 
-    while (processedStates == peers) {
+    while (peerStates.size == peers) {
       if(named("body-0")) print("#")
-      processedStates = 0
-      val tPlus = t + 1
-      currentState = nextState(currentState, Seq.empty[S])
+      // calculate new state
+      val nextTime = t + 1
+      currentState = nextState(currentState, peerStates)
+      peerStates.clear()
 
-      if (tPlus == tMax) {
+      if (nextTime == tMax) {
+        if(named("body-0")) println()
         context.parent ! currentState
       } else {
         broadcastState(currentState)
-        processedStates += futureStates
-        futureStates = 0
+        peerStates ++= futureStates
+        futureStates.clear()
+
         t += 1
       }
     }
   }
 
   def broadcastState(state: S): Unit = {
-    context.actorSelection("../*") ! state
+    bodies ! state
   }
 
   def named(name: String) = self.path.name equals name

@@ -19,64 +19,69 @@ case class ActorRefSeq(list: Seq[ActorRef])
 
 case class StartSimulation(handler: ActorRef)
 
-case class Finished[S <: BodyState](result: Seq[S])
+case class Finished[S <: State](result: Seq[S])
 
 case object Ready
 
 case object Start
 
-trait BodyState {
+trait State {
   def t: Long
 }
 
-case class MassBodyState(time: Long, val mass: Double) extends BodyState {
+class StateM2D(time: Long, val m: Double, val p: Point) extends State {
   override def t: Long = time
+}
+
+object StateM2D {
+  def random(random: Random) =
+    new StateM2D(0, random.nextDouble(), Point.random(random))
 }
 
 object Simulator {
 
-  def main(args: Array[String]) {
-    println("java -jar <name> <l/a> <t> <n>")
+  val G = 6.67408e-11
 
+  val actorSystem = ActorSystem()
+  actorSystem.registerOnTermination({
+    System.exit(0)
+  })
+
+  val initialStates = StateSet.empty[StateM2D]
+
+  def force(s1: StateM2D, s2: StateM2D): Double = G * ((s1.m * s2.m) / Point.distanceSq(s1.p, s2.p))
+
+  def nextState(state: StateM2D, states: Seq[StateM2D]) = {
+    val t = state.t + 1
+    val random = new Random()
+    val resForce = states.map {s2 => force(state, s2)}.sum
+    states foreach {
+      _ => 0 until 10 foreach {
+        _ => random.nextDouble()
+      }
+    }
+
+    new StateM2D(t, state.m, state.p)
+  }
+
+  def main(args: Array[String]): Unit = {
+    //    println("java -jar <name> <l/a> <t> <n>")
     val tMax = if (args.nonEmpty) args(1).toLong else 1
     val actors = if (args.nonEmpty) args(2).toInt else 10000
 
-    def nextState(massBodyState: MassBodyState, states: Seq[MassBodyState]) = {
-      val t = massBodyState.t + 1
-      val mass = massBodyState.mass + 1
-      val random = new Random()
-
-      var i = 0
-      val max = 1000
-      while (i < max) {
-        random.nextGaussian()
-        i += 1
-      }
-
-      MassBodyState(t, mass)
-    }
-
-    val initialStates = StateSet.empty[MassBodyState]
+    val random = new Random()
     0 until actors foreach {
-      n => initialStates += new MassBodyState(0, 1)
+      n => initialStates += StateM2D.random(random)
     }
 
     if (args.nonEmpty && (args(0) equals "l")) {
-      val runner = new LoopSimulationRunner[MassBodyState](tMax, initialStates, nextState)
+      val runner = new LoopSimulationRunner[StateM2D](tMax, initialStates, nextState)
       runner.run()
-
     } else {
-      val actorSystem = ActorSystem()
-
-      actorSystem.registerOnTermination({
-        System.exit(0)
-      })
-
-      val bodySystem = actorSystem.actorOf(Props(classOf[BodySystem[MassBodyState]],
+      val bodySystem = actorSystem.actorOf(Props(classOf[BodySystem[StateM2D]],
         tMax, initialStates, nextState _,
-        implicitly[ClassTag[MassBodyState]]), name = "system")
+        implicitly[ClassTag[StateM2D]]), name = "body-system")
       val handler = actorSystem.actorOf(Props[FinishedHandler], name = "finish-handler")
-
       bodySystem ! StartSimulation(handler)
     }
   }
@@ -90,4 +95,17 @@ class FinishedHandler extends Actor with ActorLogging {
       context.stop(self)
       context.system.terminate()
   }
+}
+
+class Point(val x: Double, val y: Double)
+
+object Point {
+
+  def random(random: Random): Point = {
+    new Point(random.nextDouble(), random.nextDouble())
+  }
+
+  def distance(p1: Point, p2: Point): Double = Math.sqrt(distanceSq(p1, p2))
+
+  def distanceSq(p1: Point, p2: Point): Double = Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)
 }
