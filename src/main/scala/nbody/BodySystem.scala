@@ -14,14 +14,14 @@ final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq
 
   var nanoStart: Long = 0
 
-  def n = initialStates.size
+  def n: Long = initialStates.size
 
   def startSimulation(): Unit = {
     val iterator = Iterator.from(0)
     // spawn actors
     initialStates foreach { state =>
       bodies += context.watch {
-        context.actorOf(Props(classOf[Body[S]], tMax, state, nextState, implicitly[ClassTag[S]]),
+        context.actorOf(Props(classOf[Body[S]], n, tMax, state, nextState, implicitly[ClassTag[S]]),
           name = "body-" + iterator.next())
       }
     }
@@ -30,7 +30,7 @@ final class BodySystem[S <: BodyState : ClassTag](tMax: Long, initialStates: Seq
     nanoStart = System.nanoTime()
 
     bodies foreach { body =>
-      body ! ActorRefSeq(bodies.filter { b => b != body })
+      body ! Start
     }
   }
 

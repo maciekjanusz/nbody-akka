@@ -3,6 +3,7 @@ package nbody
 import akka.actor._
 
 import scala.reflect.ClassTag
+import scala.util.Random
 
 /*
   - skalowanie z realnym obciążeniem obliczeniowym
@@ -37,12 +38,21 @@ object Simulator {
   def main(args: Array[String]) {
     println("java -jar <name> <l/a> <t> <n>")
 
-    val tMax = if(args.nonEmpty) args(1).toLong else 1
-    val actors = if(args.nonEmpty) args(2).toInt else 10000
+    val tMax = if (args.nonEmpty) args(1).toLong else 1
+    val actors = if (args.nonEmpty) args(2).toInt else 10000
 
     def nextState(massBodyState: MassBodyState, states: Seq[MassBodyState]) = {
       val t = massBodyState.t + 1
       val mass = massBodyState.mass + 1
+      val random = new Random()
+
+      var i = 0
+      val max = 1000
+      while (i < max) {
+        random.nextGaussian()
+        i += 1
+      }
+
       MassBodyState(t, mass)
     }
 
@@ -51,7 +61,7 @@ object Simulator {
       n => initialStates += new MassBodyState(0, 1)
     }
 
-    if(args.nonEmpty && (args(0) equals "l")) {
+    if (args.nonEmpty && (args(0) equals "l")) {
       val runner = new LoopSimulationRunner[MassBodyState](tMax, initialStates, nextState)
       runner.run()
 

@@ -4,21 +4,24 @@ import akka.actor.{Actor, ActorLogging, ActorRef}
 
 import scala.reflect.ClassTag
 
-sealed class Body[S <: BodyState : ClassTag](tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
+sealed class Body[S <: BodyState : ClassTag](n: Long, tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
   extends Actor with ActorLogging {
 
+  def peers = n - 1
+
   var currentState = initialState
-  val peers = StateSet.empty[ActorRef]
+  val bodies = context.actorSelection("../*") // siblings
   val peerStates = StateSet.empty[S]
   val futureStates = StateSet.empty[S]
 
   override def receive: Receive = {
-    case ActorRefSeq(list) =>
-      peers ++= list
+    case Start =>
       broadcastState(initialState)
 
     case state: S =>
-      receiveState(state)
+      if (sender() != self) {
+        receiveState(state)
+      }
   }
 
   def receiveState(state: S): Unit = {
@@ -30,13 +33,15 @@ sealed class Body[S <: BodyState : ClassTag](tMax: Long, initialState: S, nextSt
 
     var t = state.t
 
-    while (peerStates.size == peers.size) {
+    while (peerStates.size == peers) {
+      if(named("body-0")) print("#")
       // calculate new state
       val nextTime = t + 1
       currentState = nextState(currentState, peerStates)
       peerStates.clear()
 
-      if(nextTime == tMax) {
+      if (nextTime == tMax) {
+        if(named("body-0")) println()
         context.parent ! currentState
       } else {
         broadcastState(currentState)
@@ -48,7 +53,9 @@ sealed class Body[S <: BodyState : ClassTag](tMax: Long, initialState: S, nextSt
     }
   }
 
-  def broadcastState(state: BodyState): Unit = {
-    peers foreach { _ ! state }
+  def broadcastState(state: S): Unit = {
+    bodies ! state
   }
+
+  def named(name: String) = self.path.name equals name
 }
