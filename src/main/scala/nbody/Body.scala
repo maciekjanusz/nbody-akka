@@ -34,14 +34,12 @@ class Body[S <: State : ClassTag](n: Long, tMax: Long, initialState: S, nextStat
     var t = state.t
 
     while (peerStates.size == peers) {
-      if(named("body-0")) print("#")
       // calculate new state
       val nextTime = t + 1
       currentState = nextState(currentState, peerStates)
       peerStates.clear()
 
       if (nextTime == tMax) {
-        if(named("body-0")) println()
         context.parent ! currentState
       } else {
         broadcastState(currentState)

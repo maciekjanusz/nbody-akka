@@ -1,7 +1,11 @@
 package nbody
 
+import java.util.concurrent.TimeUnit
+
+import akka.actor.SupervisorStrategy.{Resume, Restart, Stop, Escalate}
 import akka.actor._
 
+import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 import scala.util.Random
 
@@ -56,7 +60,7 @@ object Simulator {
     val random = new Random()
     val resForce = states.map {s2 => force(state, s2)}.sum
     states foreach {
-      _ => 0 until 10 foreach {
+      _ => 0 until 20 foreach {
         _ => random.nextDouble()
       }
     }
@@ -95,17 +99,12 @@ class FinishedHandler extends Actor with ActorLogging {
       context.stop(self)
       context.system.terminate()
   }
-}
 
-class Point(val x: Double, val y: Double)
-
-object Point {
-
-  def random(random: Random): Point = {
-    new Point(random.nextDouble(), random.nextDouble())
-  }
-
-  def distance(p1: Point, p2: Point): Double = Math.sqrt(distanceSq(p1, p2))
-
-  def distanceSq(p1: Point, p2: Point): Double = Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)
+  override val supervisorStrategy =
+    OneForOneStrategy() {
+      case _: ArithmeticException      => Resume
+      case _: NullPointerException     => Restart
+      case _: IllegalArgumentException => Stop
+      case _: Exception                => Escalate
+    }
 }
