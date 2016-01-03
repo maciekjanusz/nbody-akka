@@ -14,16 +14,6 @@ import scala.util.Random
   - dopisac program z problemem szukania substringow
  */
 
-case class StartSimulation(handler: ActorRef)
-
-case class Finished[S <: State](result: Seq[S])
-
-case object Start
-
-trait State {
-  def t: Long
-}
-
 class TimedState(timeStep: Long) {
   def t = timeStep
 }

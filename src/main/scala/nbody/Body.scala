@@ -7,19 +7,22 @@ import scala.reflect.ClassTag
 class Body[S <: State : ClassTag](n: Long, tMax: Long, initialState: S, nextState: (S, Seq[S]) => S)
   extends Actor with ActorLogging {
 
-  def peers = n - 1
-
-  var currentState = initialState
-  val bodies = context.actorSelection("../*") // siblings
+  var started = false
+  val peers = n - 1
+  val bodies = context.actorSelection("../*")
   val peerStates = StateSet.empty[S]
   val futureStates = StateSet.empty[S]
+  var currentState = initialState
 
   override def receive: Receive = {
     case Start =>
-      broadcastState(initialState)
+      if (!started) {
+        broadcastState(initialState)
+        started = true
+      }
 
     case state: S =>
-      if (sender() != self) {
+      if (sender != self) {
         receiveState(state)
       }
   }
@@ -32,14 +35,11 @@ class Body[S <: State : ClassTag](n: Long, tMax: Long, initialState: S, nextStat
     }
 
     var t = state.t
-
     while (peerStates.size == peers) {
-      // calculate new state
-      val nextTime = t + 1
       currentState = nextState(currentState, peerStates)
       peerStates.clear()
 
-      if (nextTime == tMax) {
+      if (t + 1 == tMax) {
         context.parent ! currentState
       } else {
         broadcastState(currentState)
@@ -54,6 +54,4 @@ class Body[S <: State : ClassTag](n: Long, tMax: Long, initialState: S, nextStat
   def broadcastState(state: S): Unit = {
     bodies ! state
   }
-
-  def named(name: String) = self.path.name equals name
 }
