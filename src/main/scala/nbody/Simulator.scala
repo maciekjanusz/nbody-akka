@@ -14,7 +14,7 @@ import scala.util.Random
   - dopisac program z problemem szukania substringow
  */
 
-class TimedState(timeStep: Long) {
+class TimedState(timeStep: Long) extends State {
   def t = timeStep
 }
 
