@@ -27,11 +27,8 @@ class LoopSimulationRunner[S <: State : ClassTag](tMax: Long, initialStates: Seq
     }
 
     val delta = System.nanoTime() - nanoStart
-    val avgFrame = delta / tMax
     val deltaMillis = TimeUnit.NANOSECONDS.toMillis(delta)
-    val avgMillis = TimeUnit.NANOSECONDS.toMillis(avgFrame)
-
-    println("Finished in " + deltaMillis + " ms, avg t/frame = " + avgMillis + " ms (" + avgFrame + "ns)")
+    val avgDeltaMillis = deltaMillis / tMax
+    println("Finished in " + deltaMillis + "ms (" + delta + "ns), avg " + avgDeltaMillis + "ms")
   }
-
 }

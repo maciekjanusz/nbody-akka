@@ -20,38 +20,39 @@ class TimedState(timeStep: Long) extends State {
 
 object Simulator {
 
-  val actorSystem = ActorSystem()
-  actorSystem.registerOnTermination({
-    System.exit(0)
-  })
-
   val initialStates = StateSet.empty[TimedState]
 
   def nextState(state: TimedState, states: Seq[TimedState]) = {
     import state._
     val random = new Random()
-    states foreach {
-      _ => 0 until 20 foreach {
-        _ => random.nextDouble()
+    states foreach { _ =>
+      0 until 20 foreach { _ =>
+        random.nextDouble()
       }
     }
     new TimedState(t + 1)
   }
 
   def main(args: Array[String]): Unit = {
-    //    println("java -jar <name> <l/a> <t> <n>")
+    val mode = args(0)
     val tMax = args(1).toLong
-    val actors = args(2).toInt
+    val n = args(2).toInt
 
-    val random = new Random()
-    0 until actors foreach {
+    println(mode + ", tMax = " + tMax + ", n = " + n)
+
+    0 until n foreach {
       n => initialStates += new TimedState(0)
     }
 
-    if (args.nonEmpty && (args(0) equals "l")) {
+    if (args.nonEmpty && (mode equals "l")) {
       val runner = new LoopSimulationRunner[TimedState](tMax, initialStates, nextState)
       runner.run()
+
     } else {
+      val actorSystem = ActorSystem()
+      actorSystem.registerOnTermination({
+        System.exit(0)
+      })
       val bodySystem = actorSystem.actorOf(Props(classOf[BodySystem[TimedState]],
         tMax, initialStates, nextState _,
         implicitly[ClassTag[TimedState]]), name = "body-system")
@@ -66,6 +67,7 @@ class FinishedHandler extends Actor with ActorLogging {
   override def receive: Receive = {
     case Finished(results) =>
       context.stop(self)
+      log.info("S = " + results.last.t)
       context.system.terminate()
   }
 }

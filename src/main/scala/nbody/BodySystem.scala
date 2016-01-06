@@ -1,5 +1,7 @@
 package nbody
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
 import scala.reflect.ClassTag
@@ -8,15 +10,15 @@ class BodySystem[S <: State : ClassTag](tMax: Long, initialStates: Seq[S], nextS
   extends Actor with ActorLogging {
 
   val results = StateSet.empty[S]
-
+  val iterator = Iterator.from(0)
   var nanoStart: Long = 0
 
   def n: Long = initialStates.size
 
   def startSimulation(): Unit = {
-    val iterator = Iterator.from(0)
-    val bodies = StateSet.empty[ActorRef]
+    nanoStart = System.nanoTime()
 
+    val bodies = StateSet.empty[ActorRef]
     initialStates foreach { state =>
       bodies += context.actorOf(Props(classOf[Body[S]],
         n, tMax, state, nextState, implicitly[ClassTag[S]]), name = "body-" + iterator.next())
@@ -36,6 +38,11 @@ class BodySystem[S <: State : ClassTag](tMax: Long, initialStates: Seq[S], nextS
     case state: S =>
       results += state
       if (results.size == n) {
+        val delta = System.nanoTime() - nanoStart
+        val deltaMillis = TimeUnit.NANOSECONDS.toMillis(delta)
+        val avgDeltaMillis = deltaMillis / tMax
+        log.info("Finished in " + deltaMillis + "ms (" + delta + "ns), avg " + avgDeltaMillis + "ms")
+
         context.stop(self)
         handler ! Finished(results)
       }
